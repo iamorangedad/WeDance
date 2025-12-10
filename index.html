@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Immersive Skeleton Tracking</title>
+    <style>
+        /* 页面样式：去除滚动条，全屏黑色 */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* 隐藏原始视频流，我们要看的是3D渲染 */
+        #input_video {
+            display: none;
+        }
+
+        /* 画布全屏 */
+        #output_canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* 加载提示 */
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #00ffcc;
+            font-family: sans-serif;
+            font-size: 20px;
+            pointer-events: none;
+            z-index: 10;
+        }
+    </style>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+</head>
+
+<body>
+
+    <div id="loading">正在初始化摄像头与AI模型...<br>请允许摄像头权限</div>
+    <video id="input_video"></video>
+    <div id="container"></div>
+
+    <script>
+        // ================= 配置区域 =================
+        const CONFIG = {
+            lineColor: 0x00ffcc, // 骨骼线条颜色 (青色荧光)
+            jointColor: 0xffffff, // 关节颜色 (白色)
+            lineWidth: 0.8,       // 线条粗细 (半径)
+            jointSize: 1.2        // 关节大小 (半径)
+        };
+
+        // ================= Three.js 初始化 =================
+        const container = document.getElementById('container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x000000); // 纯黑背景
+
+        // 摄像机设置 (透视投影)
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 20; // 摄像机位置
+        camera.position.y = 0;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true }); // 开启抗锯齿
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        container.appendChild(renderer.domElement);
+
+        // 添加光照，让3D物体有立体感
+        const ambientLight = new THREE.AmbientLight(0x404040);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(0, 1, 1);
+        scene.add(directionalLight);
+
+        // ================= 骨骼构建逻辑 =================
+
+        // MediaPipe 定义的 33 个关键点连接关系 (身体骨架)
+        const POSE_CONNECTIONS = [
+            [11, 12], [11, 13], [13, 15], // 肩膀到手腕 (左)
+            [12, 14], [14, 16],           // 肩膀到手腕 (右)
+            [11, 23], [12, 24],           // 躯干
+            [23, 24],                     // 髋部
+            [23, 25], [25, 27], [27, 29], [29, 31], // 腿 (左)
+            [24, 26], [26, 28], [28, 30], [30, 32], // 腿 (右)
+            [0, 1], [1, 2], [2, 3], [3, 7], // 脸部轮廓简化
+            [0, 4], [4, 5], [5, 6], [6, 8]
+        ];
+
+        // 用于存储当前场景中的骨骼网格对象
+        let skeletonMeshes = {
+            joints: [], // 存储关节 Sphere
+            bones: []   // 存储骨骼 Cylinder
+        };
+
+        // 初始化骨骼池 (预先创建一些 Mesh，复用以提高性能)
+        function initSkeletonMesh() {
+            // 创建33个关节
+            for (let i = 0; i < 33; i++) {
+                const geometry = new THREE.SphereGeometry(CONFIG.jointSize, 16, 16);
+                const material = new THREE.MeshPhongMaterial({ color: CONFIG.jointColor });
+                const sphere = new THREE.Mesh(geometry, material);
+                sphere.visible = false;
+                scene.add(sphere);
+                skeletonMeshes.joints.push(sphere);
+            }
+
+            // 创建连接线 (圆柱体实现加粗线条)
+            POSE_CONNECTIONS.forEach(() => {
+                const geometry = new THREE.CylinderGeometry(CONFIG.lineWidth, CONFIG.lineWidth, 1, 8);
+                const material = new THREE.MeshPhongMaterial({ color: CONFIG.lineColor, transparent: true, opacity: 0.9 });
+                const cylinder = new THREE.Mesh(geometry, material);
+                cylinder.visible = false;
+                // 调整旋转中心，便于两点对齐
+                cylinder.geometry.translate(0, 0.5, 0);
+                cylinder.geometry.rotateX(Math.PI / 2);
+                scene.add(cylinder);
+                skeletonMeshes.bones.push(cylinder);
+            });
+        }
+
+        initSkeletonMesh();
+
+        // ================= MediaPipe 处理逻辑 =================
+
+        const videoElement = document.getElementById('input_video');
+        const loadingElement = document.getElementById('loading');
+
+        function onResults(results) {
+            // 隐藏加载文字
+            if (loadingElement.style.display !== 'none' && results.poseLandmarks) {
+                loadingElement.style.display = 'none';
+            }
+
+            // 如果没有检测到人，隐藏所有骨骼
+            if (!results.poseLandmarks) {
+                skeletonMeshes.joints.forEach(mesh => mesh.visible = false);
+                skeletonMeshes.bones.forEach(mesh => mesh.visible = false);
+                renderer.render(scene, camera);
+                return;
+            }
+
+            // 1. 更新关节位置
+            const landmarks = results.poseLandmarks;
+
+            // 缩放因子，将 normalized coordinates (0-1) 转换为 Three.js 坐标系
+            const scaleX = -30; // 负号用于镜像
+            const scaleY = -20; // Y轴反转
+            const offsetX = 15;
+            const offsetY = 10;
+
+            landmarks.forEach((landmark, index) => {
+                if (index < skeletonMeshes.joints.length) {
+                    const mesh = skeletonMeshes.joints[index];
+
+                    // 简单的投影映射：将 2D 视频坐标 + 可见度 Z 转换为 3D 空间
+                    // 注意：MediaPipe 提供的 z 是相对深度
+                    const x = (landmark.x * scaleX) + offsetX;
+                    const y = (landmark.y * scaleY) + offsetY;
+                    const z = -landmark.z * 20; // 深度增强
+
+                    mesh.position.set(x, y, z);
+
+                    // 根据可见度(visibility)决定是否显示
+                    mesh.visible = landmark.visibility > 0.5;
+                }
+            });
+
+            // 2. 更新骨骼连接 (线条)
+            POSE_CONNECTIONS.forEach((pair, index) => {
+                if (index < skeletonMeshes.bones.length) {
+                    const boneMesh = skeletonMeshes.bones[index];
+                    const idx1 = pair[0];
+                    const idx2 = pair[1];
+
+                    const joint1 = skeletonMeshes.joints[idx1];
+                    const joint2 = skeletonMeshes.joints[idx2];
+
+                    if (joint1.visible && joint2.visible) {
+                        boneMesh.visible = true;
+
+                        // 设置线条位置为起点
+                        boneMesh.position.copy(joint1.position);
+
+                        // 计算从点1到点2的向量
+                        const distance = joint1.position.distanceTo(joint2.position);
+                        boneMesh.lookAt(joint2.position);
+
+                        // 缩放圆柱体的长度以匹配两点间距
+                        // 原始圆柱体长度为1，Z轴方向，我们只需要缩放Z轴
+                        boneMesh.scale.set(1, 1, distance);
+                    } else {
+                        boneMesh.visible = false;
+                    }
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        // 初始化 Pose 模型
+        const pose = new Pose({
+            locateFile: (file) => {
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+            }
+        });
+
+        pose.setOptions({
+            modelComplexity: 1, // 1 是中等模型，平衡速度和精度
+            smoothLandmarks: true,
+            enableSegmentation: false,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        pose.onResults(onResults);
+
+        // 启动摄像头
+        const cam = new Camera(videoElement, {
+            onFrame: async () => {
+                await pose.send({ image: videoElement });
+            },
+            width: 640,
+            height: 480
+        });
+        cam.start();
+
+        // ================= 窗口自适应 =================
+        window.addEventListener('resize', onWindowResize, false);
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+    </script>
+</body>
+
+</html>
