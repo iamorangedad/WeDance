@@ -5,7 +5,7 @@ import websockets
 import json
 
 # 配置
-RTSP_URL = "rtsp://YOUR_IPHONE_IP:PORT/live"  # 替换为你iPhone App里的地址
+RTSP_URL = "rtsp://10.0.0.75:8554/stream"  # 替换为你iPhone App里的地址
 PORT = 8765
 
 # 初始化 MediaPipe
