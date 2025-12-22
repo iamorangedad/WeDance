@@ -7,7 +7,7 @@ from ultralytics import YOLO
 # ================= 配置 =================
 RTSP_URL = "rtsp://10.0.0.75:8554/stream"  # 记得修改 IP
 PORT = 8765
-MODEL_PATH = "yolov8n-pose.engine"  # 使用刚才生成的 engine 文件
+MODEL_PATH = "yolo11n-pose.engine"  # 使用刚才生成的 engine 文件
 
 # 加载 TensorRT 模型 (Task='pose')
 print("Loading TensorRT Engine...")
