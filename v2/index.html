@@ -75,17 +75,21 @@
 
         // ================= 骨骼构建逻辑 (保持不变) =================
         const POSE_CONNECTIONS = [
-            [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
-            [11, 23], [12, 24], [23, 24], [23, 25], [25, 27],
-            [27, 29], [29, 31], [24, 26], [26, 28], [28, 30],
-            [30, 32], [0, 1], [1, 2], [2, 3], [3, 7],
-            [0, 4], [4, 5], [5, 6], [6, 8]
+            [0, 1], [0, 2],       // 鼻子到眼睛
+            [1, 3], [2, 4],       // 眼睛到耳朵
+            [5, 6],               // 双肩连接
+            [5, 7], [7, 9],       // 左手: 肩-肘-腕
+            [6, 8], [8, 10],      // 右手: 肩-肘-腕
+            [5, 11], [6, 12],     // 躯干: 肩到胯
+            [11, 12],             // 胯部连接
+            [11, 13], [13, 15],   // 左腿: 胯-膝-踝
+            [12, 14], [14, 16]    // 右腿: 胯-膝-踝
         ];
 
         let skeletonMeshes = { joints: [], bones: [] };
 
         function initSkeletonMesh() {
-            for (let i = 0; i < 33; i++) {
+            for (let i = 0; i < 17; i++) {
                 const geometry = new THREE.SphereGeometry(CONFIG.jointSize, 16, 16);
                 const material = new THREE.MeshPhongMaterial({ color: CONFIG.jointColor });
                 const sphere = new THREE.Mesh(geometry, material);
@@ -151,9 +155,13 @@
             landmarks.forEach((landmark, index) => {
                 if (index < skeletonMeshes.joints.length) {
                     const mesh = skeletonMeshes.joints[index];
+
                     const x = (landmark.x * scaleX) + offsetX;
                     const y = (landmark.y * scaleY) + offsetY;
-                    const z = -landmark.z * 20;
+                    // 这是一个简单的伪3D处理：
+                    // 如果你想要完全扁平，就设为 0
+                    // 或者根据 y 值做一点倾斜，让人看起来是站着的
+                    const z = 0;
 
                     mesh.position.set(x, y, z);
                     mesh.visible = landmark.visibility > 0.5;
