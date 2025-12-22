@@ -1,0 +1,1 @@
+gst-launch-1.0 filesrc location=test_video.mp4 ! qtdemux ! h264parse ! nvv4l2decoder ! fakesink sync=false
