@@ -88,7 +88,7 @@ async def handler(websocket):
 async def main():
     print(f"Server started on ws://0.0.0.0:{PORT}")
     async with websockets.serve(handler, "0.0.0.0", PORT):
-        await asyncio.future
+        await asyncio.Future()
 
 
 if __name__ == "__main__":
