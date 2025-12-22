@@ -25,8 +25,9 @@ async def handler(websocket):
         "nvvidconv ! video/x-raw, format=BGRx ! "
         "videoconvert ! video/x-raw, format=BGR ! appsink"
     )
-    cap = cv2.VideoCapture(gst_pipeline, cv2.CAP_GSTREAMER)
-    # 或者简单版: cap = cv2.VideoCapture(RTSP_URL)
+    # cap = cv2.VideoCapture(gst_pipeline, cv2.CAP_GSTREAMER)
+    # 或者简单版
+    cap = cv2.VideoCapture(RTSP_URL)
     # === 调试点 1 ===
     print("摄像头初始化完成，准备进入循环...")
     try:
