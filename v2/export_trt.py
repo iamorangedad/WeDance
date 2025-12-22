@@ -1,7 +1,7 @@
 from ultralytics import YOLO
 
 # 1. 下载 PyTorch 模型 (.pt)
-model = YOLO("yolov8n-pose.pt")
+model = YOLO("yolo11n-pose.pt")
 
 # 2. 导出为 TensorRT 引擎 (.engine)
 # device=0 使用 GPU
