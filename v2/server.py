@@ -27,12 +27,14 @@ async def handler(websocket):
     )
     cap = cv2.VideoCapture(gst_pipeline, cv2.CAP_GSTREAMER)
     # 或者简单版: cap = cv2.VideoCapture(RTSP_URL)
-
+    # === 调试点 1 ===
+    print("摄像头初始化完成，准备进入循环...")
     try:
         while cap.isOpened():
             success, frame = cap.read()
             if not success:
-                print("Wait for frame...")
+                # === 调试点 2：高概率这里疯狂输出 ===
+                print("❌ 读取帧失败 (Empty Frame)")
                 await asyncio.sleep(0.1)
                 continue
 
@@ -74,7 +76,11 @@ async def handler(websocket):
                         data["landmarks"] = landmarks
                         data["found"] = True
                         break  # 只发一个人
-
+            # === 调试点 3 ===
+            if data["found"]:
+                print("✅ 找到人了！正在发送数据...")
+            else:
+                print("👀 画面正常，但没人")
             await websocket.send(json.dumps(data))
             # YOLO 极快，如果不加 sleep，可能会瞬间发太多包淹没前端
             # 但为了流畅度，我们不加 sleep，全速运行
