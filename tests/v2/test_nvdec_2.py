@@ -41,4 +41,3 @@ avg_fps = fps_count / (end_time - start_time)
 
 print(f"\n✅ 测试结束。平均帧率: {avg_fps:.2f} FPS")
 cap.release()
-:
