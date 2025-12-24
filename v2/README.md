@@ -136,3 +136,39 @@ python3 server.py
 
 ```
 
+Here is a draft for your `README.md`. It focuses on the "Option 2" strategy (Symlinking the compiled library) while ensuring the conflicting `pip` version is removed first to prevent shadowing.
+
+You can add this section to the **Troubleshooting** or **Installation** part of your documentation.
+
+---
+
+## 🔧 Troubleshooting: OpenCV Version Conflict (GStreamer/CUDA Support)
+
+If you have compiled OpenCV from source (to enable CUDA and GStreamer) but `cv2.getBuildInformation()` still shows **`GStreamer: NO`** or **`CUDA: NO`**, your Python environment is likely loading a pre-built `pip` version instead of your custom-compiled system version.
+
+This happens because `pip install opencv-python` shadows the system-level installation.
+
+### 1. Diagnosis
+
+Run the following command to check which OpenCV file is being loaded:
+
+```bash
+python3 -c "import cv2; print(f'Path: {cv2.__file__}\nGStreamer: {cv2.getBuildInformation().find(\"GStreamer: YES\") != -1}')"
+
+```
+
+* **Conflict:** If the path includes `site-packages/cv2/cv2.abi3.so` or `__init__.py`, you are using the `pip` version.
+* **Correct:** The path should point to a shared object file like `/usr/lib/python3.10/dist-packages/cv2.so` (or `/usr/local/lib/...`).
+
+### 2. Solution: Link to Custom Compiled OpenCV
+
+To force Python to use the custom-compiled version with hardware acceleration, follow these steps:
+
+#### Remove Conflicting Pip Packages
+
+The pre-built pip packages must be removed to prevent them from taking precedence.
+
+```bash
+pip uninstall -y opencv-python opencv-contrib-python opencv-python-headless
+
+```
